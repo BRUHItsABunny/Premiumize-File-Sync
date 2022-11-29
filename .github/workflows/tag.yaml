@@ -30,7 +30,7 @@ jobs:
       - name: Set BUILD_TIME env
         run: echo BUILD_TIME=$(date) >> ${GITHUB_ENV}
       - name: Set REPO_URL env
-        run: echo REPO_URL=$(echo "https://github.com/${GITHUB_REPOSITORY}/") >> ${GITHUB_ENV}
+        run: echo REPO_URL=$(echo "github.com/${GITHUB_REPOSITORY}/") >> ${GITHUB_ENV}
       - name: Environment Printer
         uses: managedkaos/print-env@v1.0
       - uses: wangyoucao577/go-release-action@v1.33
@@ -41,4 +41,4 @@ jobs:
           goversion: "https://dl.google.com/go/go1.19.3.linux-amd64.tar.gz"
           binary_name: "premfs"
           extra_files: README.md
-          ldflags: -X "${{ env.REPO_URL }}app.gitRepo=${{ env.REPO_URL }}" -X "${{ env.REPO_URL }}app.appVersion=${{ env.APP_VERSION }}" -X "${{ env.REPO_URL }}app.buildTime=${{ env.BUILD_TIME }}" -X ${{ env.REPO_URL }}app.gitCommit=${{ github.sha }} -X ${{ env.REPO_URL }}app.gitRef=${{ github.ref }}
+          ldflags: -X "${{ env.REPO_URL }}app.gitRepo=https://${{ env.REPO_URL }}" -X "${{ env.REPO_URL }}app.appVersion=${{ env.APP_VERSION }}" -X "${{ env.REPO_URL }}app.buildTime=${{ env.BUILD_TIME }}" -X ${{ env.REPO_URL }}app.gitCommit=${{ github.sha }} -X ${{ env.REPO_URL }}app.gitRef=${{ github.ref }}
