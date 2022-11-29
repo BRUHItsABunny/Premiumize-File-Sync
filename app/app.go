@@ -1,16 +1,20 @@
 package app
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
 	"github.com/BRUHItsABunny/bunnlog"
 	"github.com/BRUHItsABunny/go-premiumize/api"
 	premiumize_client "github.com/BRUHItsABunny/go-premiumize/client"
+	"github.com/google/go-github/v48/github"
+	"github.com/hashicorp/go-version"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 )
 
 type App struct {
@@ -124,6 +128,31 @@ func (a *App) SetupPremiumizeClient() error {
 }
 
 func (a *App) VersionRoutine() string {
-	return fmt.Sprintf("Version:\t%s\nBuild Time:\t%s\nGit Commit:\t%s\nGit Ref:\t%s\n",
+	latestVersion := appVersion
+	client := github.NewClient(nil)
+
+	// list all organizations for user "willnorris"
+	urLsplitter := strings.Split(gitRepo, "/")
+	tags, _, err := client.Repositories.ListTags(context.Background(), urLsplitter[len(urLsplitter)-3], urLsplitter[len(urLsplitter)-2], nil)
+	if len(tags) > 0 {
+		latestTag := tags[0]
+		if latestTag != nil && latestTag.Name != nil {
+			latestTagVersion := *latestTag.Name
+			v1, _ := version.NewVersion(appVersion[0:])
+			v2, _ := version.NewVersion(latestTagVersion[0:])
+			if v1.LessThan(v2) {
+				latestVersion = latestTagVersion
+			}
+		}
+	}
+	result := fmt.Sprintf("Version:\t%s\nBuild Time:\t%s\nGit Commit:\t%s\nGit Ref:\t%s\n",
 		appVersion, buildTime, gitCommit, gitRef)
+	if latestVersion != appVersion {
+		latestVersionURL := gitRepo + "releases/tag/" + latestVersion
+		result += fmt.Sprintf("There is a newer version %s to find out more:\n%s\n", latestVersion, latestVersionURL)
+	}
+	if err != nil {
+		result += fmt.Sprintf("Error checkking for new version: %s", err.Error())
+	}
+	return result
 }
