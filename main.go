@@ -87,6 +87,13 @@ func main() {
 		panic(err)
 	}
 
+	versionOutput := appData.VersionRoutine()
+	if appData.Cfg.Version {
+		fmt.Println(versionOutput)
+		os.Exit(0)
+	}
+	appData.BLog.Debug(versionOutput)
+
 	appData.Directory = utils.LocateDirectory(appData.Client, appData.Cfg.Folder, appData.Cfg.Recursive)
 	if appData.Directory == nil {
 		// can't get dir

@@ -2,6 +2,7 @@ package app
 
 import (
 	"flag"
+	"fmt"
 	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
 	"github.com/BRUHItsABunny/bunnlog"
 	"github.com/BRUHItsABunny/go-premiumize/api"
@@ -63,6 +64,7 @@ func (a *App) ParseCfg() {
 	flag.StringVar(&a.Cfg.Proxy, "proxy", "", "This argument is for proxying this program (format: proto://ip:port)")
 	flag.BoolVar(&a.Cfg.Debug, "debug", false, "This argument is for how verbose the logger will be")
 	flag.BoolVar(&a.Cfg.Daemon, "daemon", false, "This argument is for how the UI feedback will be, if set to true it will print JSON")
+	flag.BoolVar(&a.Cfg.Version, "version", false, "This argument will print the current version data and exit")
 	flag.Parse()
 
 	if a.Cfg.DownloadThreads > 6 {
@@ -119,4 +121,9 @@ func (a *App) SetupPremiumizeClient() error {
 	}
 	a.Client = premiumize_client.NewPremiumizeClient(session, a.DownloadClient)
 	return nil
+}
+
+func (a *App) VersionRoutine() string {
+	return fmt.Sprintf("Version:\t%s\nBuild Time:\t%s\nGit Commit:\t%s\nGit Ref:\t%s\n",
+		appVersion, buildTime, gitCommit, gitRef)
 }

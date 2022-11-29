@@ -9,4 +9,5 @@ type Config struct {
 	Proxy            string
 	Debug            bool
 	Daemon           bool
+	Version          bool
 }

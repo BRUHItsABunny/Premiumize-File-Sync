@@ -17,6 +17,12 @@ jobs:
             goos: windows
     steps:
       - uses: actions/checkout@v3
+      - name: Set APP_VERSION env
+        run: echo APP_VERSION=$(echo ${GITHUB_REF} | rev | cut -d'/' -f 1 | rev ) >> ${GITHUB_ENV}
+      - name: Set BUILD_TIME env
+        run: echo BUILD_TIME=$(date) >> ${GITHUB_ENV}
+      - name: Environment Printer
+        uses: managedkaos/print-env@v1.0
       - uses: wangyoucao577/go-release-action@v1.33
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -25,3 +31,4 @@ jobs:
           goversion: "https://dl.google.com/go/go1.19.3.linux-amd64.tar.gz"
           binary_name: "premfs"
           extra_files: README.md
+          ldflags: -X "github.com/BRUHItsABunny/Premiumize-File-Sync/app.appVersion=${{ env.APP_VERSION }}" -X "github.com/BRUHItsABunny/Premiumize-File-Sync/app.buildTime=${{ env.BUILD_TIME }}" -X github.com/BRUHItsABunny/Premiumize-File-Sync/app.gitCommit=${{ github.sha }} -X github.com/BRUHItsABunny/Premiumize-File-Sync/app.gitRef=${{ github.ref }}
