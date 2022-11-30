@@ -3,37 +3,46 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/BRUHItsABunny/bunnlog"
 	"go.uber.org/atomic"
 	"io"
 	"net/http"
 	"os"
 )
 
+type NetUtil struct {
+	Client *http.Client
+	BLog   *bunnlog.BunnyLog
+}
+
 // GetCurrentIPAddress Get the current IP that the Go program uses via HTTPBin.org - for VPN confirmation
-func GetCurrentIPAddress() (ip string) {
-	resp, err := http.Get("https://httpbin.org/get")
-	defer resp.Body.Close()
-
+func (u *NetUtil) GetCurrentIPAddress() (ip string) {
+	resp, err := u.Client.Get("https://httpbin.org/get")
 	if err != nil {
-		ip = "not connected"
+		u.BLog.Warnf("Error getting IP: %s", fmt.Errorf("u.Client.Get: %w", err).Error())
 		return
 	}
+
 	bodyBytes, err := io.ReadAll(resp.Body)
-
 	if err != nil {
-		ip = "not connected"
+		u.BLog.Warnf("Error getting IP: %s", fmt.Errorf("io.ReadAll: %w", err).Error())
 		return
 	}
 
+	_ = resp.Body.Close()
 	data := map[string]any{}
 	err = json.Unmarshal(bodyBytes, &data)
 
 	if err != nil {
-		ip = "not connected"
+		u.BLog.Warnf("Error getting IP: %s", fmt.Errorf("json.Unmarshal: %w", err).Error())
 		return
 	}
-
-	ip = data["origin"].(string)
+	ipPreCast, ok := data["origin"]
+	if ok {
+		ip = ipPreCast.(string)
+	} else {
+		u.BLog.Warnf("Error getting IP: %s", string(bodyBytes))
+	}
 	return
 }
 
@@ -67,43 +76,46 @@ type DownloadGlobal struct {
 
 // TODO: Write the downloader func
 
-func supportsRange(resp *http.Response) bool {
+func (u *NetUtil) supportsRange(resp *http.Response) bool {
 	supportsRanges := false
-	if resp.Request.Method == "HEAD" {
-		if resp.Header.Get("Accept-Ranges") == "bytes" {
-			supportsRanges = true
-		}
-		if resp.Header.Get("Ranges-Supported") == "bytes" {
-			supportsRanges = true
-		}
-	} else {
-		// GET?
-		contentRange := resp.Header.Get("Content-Range")
-		if contentRange != "" {
-			supportsRanges = true
+	if resp != nil {
+		// u.BLog.Debugf("NetUtil.supportsRange: Response headers: %s", spew.Sdump(resp.Header))
+		if resp.Request.Method == "HEAD" {
+			if resp.Header.Get("Accept-Ranges") == "bytes" {
+				supportsRanges = true
+			}
+			if resp.Header.Get("Ranges-Supported") == "bytes" {
+				supportsRanges = true
+			}
+		} else {
+			// GET?
+			contentRange := resp.Header.Get("Content-Range")
+			if contentRange != "" {
+				supportsRanges = true
+			}
 		}
 	}
 	return supportsRanges
 }
 
-func isResumable(hClient *http.Client, fileURL string) (bool, error) {
-	resp, err := hClient.Head(fileURL)
+func (u *NetUtil) isResumable(fileURL string) (bool, error) {
+	resp, err := u.Client.Head(fileURL)
 	if err != nil {
 		// Server doesn't support HEAD properly? Try a range GET with 1 byte
 		req, _ := http.NewRequest(http.MethodGet, fileURL, nil)
 		req.Header.Set("Range", "bytes=0-0")
-		resp, err = hClient.Do(req)
+		resp, err = u.Client.Do(req)
 	}
 
 	if err != nil {
 		return false, err
 	}
-	return supportsRange(resp), nil
+	return u.supportsRange(resp), nil
 }
 
-func DownloadFile(hClient *http.Client, global *DownloadGlobal, task *DownloadTask, f *os.File, notification chan struct{}) error {
+func (u *NetUtil) DownloadFile(global *DownloadGlobal, task *DownloadTask, f *os.File, notification chan struct{}) error {
 	// Check if download is resumable, if so make request with byte range
-	canResume, err := isResumable(hClient, task.FileURL.Load())
+	canResume, err := u.isResumable(task.FileURL.Load())
 	if err != nil {
 		return fmt.Errorf("isResumable: %w", err)
 	}
@@ -120,7 +132,7 @@ func DownloadFile(hClient *http.Client, global *DownloadGlobal, task *DownloadTa
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", task.Downloaded.Load(), task.FileSize.Load()))
 	}
 
-	resp, err := hClient.Do(req)
+	resp, err := u.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("hClient.Do: %w", err)
 	}

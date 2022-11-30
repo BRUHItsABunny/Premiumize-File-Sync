@@ -20,7 +20,7 @@ import (
 type App struct {
 	Cfg            *Config
 	Client         *premiumize_client.PremiumizeClient
-	DownloadClient *http.Client
+	DownloadClient *utils.NetUtil
 	BLog           *bunnlog.BunnyLog
 	Stats          *Statistics
 	Directory      *utils.PDirectory
@@ -50,7 +50,7 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	app.Stats = NewStatistics()
+	app.Stats = NewStatistics(app.DownloadClient.GetCurrentIPAddress())
 
 	return app, err
 }
@@ -108,7 +108,7 @@ func (a *App) SetupHTTPClient() error {
 		trans.Proxy = http.ProxyURL(puo)
 	}
 
-	a.DownloadClient = &http.Client{Transport: &trans}
+	a.DownloadClient = &utils.NetUtil{Client: &http.Client{Transport: &trans}, BLog: a.BLog}
 	return nil
 }
 
@@ -123,7 +123,7 @@ func (a *App) SetupPremiumizeClient() error {
 	if len(a.Cfg.APIKey) > 0 {
 		session = &api.PremiumizeSession{SessionType: "apikey", AuthToken: a.Cfg.APIKey}
 	}
-	a.Client = premiumize_client.NewPremiumizeClient(session, a.DownloadClient)
+	a.Client = premiumize_client.NewPremiumizeClient(session, a.DownloadClient.Client)
 	return nil
 }
 

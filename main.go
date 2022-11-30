@@ -64,7 +64,7 @@ func downloadLoop(appData *app.App, dir *utils.PDirectory, notification chan str
 		}
 
 		appData.Stats.Tasks.Set(task.FileLocation.Load(), task)
-		go utils.DownloadFile(appData.DownloadClient, appData.Stats.Global, task, f, notification)
+		go appData.DownloadClient.DownloadFile(appData.Stats.Global, task, f, notification)
 		appData.BLog.Infof("Started downloading thread url: %s", task.FileURL.Load())
 	}
 
@@ -118,7 +118,10 @@ func main() {
 			i++
 			if i >= 60 {
 				i = 1
-				appData.Stats.Global.CurrentIP.Store(utils.GetCurrentIPAddress())
+				ip := appData.DownloadClient.GetCurrentIPAddress()
+				if len(ip) > 0 {
+					appData.Stats.Global.CurrentIP.Store(ip)
+				}
 				appData.BLog.Debugf("Refreshed IP address: %s", appData.Stats.Global.CurrentIP.Load())
 			}
 			if !appData.Cfg.Daemon {

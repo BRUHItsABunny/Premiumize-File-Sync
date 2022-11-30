@@ -22,7 +22,7 @@ type Statistics struct {
 	// DoneTasks *hashmap.Map[string, *utils.DownloadTask] `json:"doneTasks"`
 }
 
-func NewStatistics() *Statistics {
+func NewStatistics(ip string) *Statistics {
 	return &Statistics{
 		Global: &utils.DownloadGlobal{
 			LastTick:        atomic.NewTime(time.Now()),
@@ -32,7 +32,7 @@ func NewStatistics() *Statistics {
 			TotalSize:       atomic.NewUint64(0),
 			Downloaded:      atomic.NewUint64(0),
 			Delta:           atomic.NewUint64(0),
-			CurrentIP:       atomic.NewString(utils.GetCurrentIPAddress()),
+			CurrentIP:       atomic.NewString(ip),
 		},
 		Tasks: hashmap.New[string, *utils.DownloadTask](),
 		// DoneTasks: hashmap.New[string, *utils.DownloadTask](),
