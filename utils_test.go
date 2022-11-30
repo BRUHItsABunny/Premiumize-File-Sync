@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
+	"github.com/BRUHItsABunny/bunnlog"
 	premiumize "github.com/BRUHItsABunny/go-premiumize"
 	"github.com/BRUHItsABunny/go-premiumize/client"
 	"github.com/cornelk/hashmap"
@@ -47,8 +48,9 @@ func TestPremiumize(t *testing.T) {
 }
 
 func Test_GetCurrentIPAddress(t *testing.T) {
-	ip := utils.GetCurrentIPAddress()
-	if ip == "not connected" {
+	netUtil := utils.NetUtil{Client: http.DefaultClient, BLog: &bunnlog.BunnyLog{}}
+	ip := netUtil.GetCurrentIPAddress()
+	if ip == "" {
 		t.Error(ip)
 	}
 	fmt.Println(ip)
