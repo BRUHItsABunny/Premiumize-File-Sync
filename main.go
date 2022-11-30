@@ -10,8 +10,19 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
+	"unicode"
 )
+
+// SortStringSLice https://stackoverflow.com/a/67222540
+type SortStringSLice struct{ sort.StringSlice }
+
+func (s SortStringSLice) Less(d, e int) bool {
+	t := strings.Map(unicode.ToUpper, s.StringSlice[d])
+	u := strings.Map(unicode.ToUpper, s.StringSlice[e])
+	return t < u
+}
 
 func downloadLoop(appData *app.App, dir *utils.PDirectory, notification chan struct{}) {
 	var (
@@ -25,10 +36,10 @@ func downloadLoop(appData *app.App, dir *utils.PDirectory, notification chan str
 	appData.BLog.Infof("Starting to download directory: %s", appData.Directory.Path.Load())
 
 	files := []string{}
-	for fileLocation, _ := range dir.Files {
-		files = append(files, fileLocation)
+	for _, fObj := range dir.Files {
+		files = append(files, fObj.Name.Load())
 	}
-	sort.Strings(files)
+	sort.Sort(sort.StringSlice(files))
 
 	for _, fileKey := range files {
 		// Wait for space in queue
@@ -73,7 +84,7 @@ func downloadLoop(appData *app.App, dir *utils.PDirectory, notification chan str
 		for subDirLocation, _ := range dir.Directories {
 			subDirs = append(subDirs, subDirLocation)
 		}
-		sort.Strings(subDirs)
+		sort.Strings(sort.StringSlice(subDirs))
 
 		for _, key := range subDirs {
 			downloadLoop(appData, dir.Directories[key], notification)

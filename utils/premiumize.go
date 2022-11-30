@@ -77,11 +77,11 @@ func CrawlFilesystem(pClient *premiumize_client.PremiumizeClient, pathPrefix, di
 	result.Path = atomic.NewString(pathPrefix)
 	for _, item := range listResp.Content {
 		if item.Type == "folder" && recursive {
-			result.Directories[item.ID] = CrawlFilesystem(pClient, pathPrefix, item.ID, recursive)
-			result.TotalSize.Add(result.Directories[item.ID].TotalSize.Load())
-			result.FileCount.Add(result.Directories[item.ID].FileCount.Load())
+			result.Directories[item.Name] = CrawlFilesystem(pClient, pathPrefix, item.ID, recursive)
+			result.TotalSize.Add(result.Directories[item.Name].TotalSize.Load())
+			result.FileCount.Add(result.Directories[item.Name].FileCount.Load())
 		} else {
-			result.Files[item.ID] = &PFile{
+			result.Files[item.Name] = &PFile{
 				ID:      atomic.NewString(item.ID),
 				Path:    atomic.NewString(result.Path.Load()),
 				Name:    atomic.NewString(item.Name),
@@ -90,7 +90,7 @@ func CrawlFilesystem(pClient *premiumize_client.PremiumizeClient, pathPrefix, di
 				Created: atomic.NewTime(time.Unix(int64(*item.CreatedAt), 0)),
 			}
 			result.FileCount.Inc()
-			result.TotalSize.Add(result.Files[item.ID].Size.Load())
+			result.TotalSize.Add(result.Files[item.Name].Size.Load())
 		}
 	}
 
