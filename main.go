@@ -10,19 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
-	"unicode"
 )
-
-// SortStringSLice https://stackoverflow.com/a/67222540
-type SortStringSLice struct{ sort.StringSlice }
-
-func (s SortStringSLice) Less(d, e int) bool {
-	t := strings.Map(unicode.ToUpper, s.StringSlice[d])
-	u := strings.Map(unicode.ToUpper, s.StringSlice[e])
-	return t < u
-}
 
 func downloadLoop(appData *app.App, dir *utils.PDirectory, notification chan struct{}) {
 	var (

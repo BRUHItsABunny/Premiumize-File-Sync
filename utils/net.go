@@ -74,8 +74,6 @@ type DownloadGlobal struct {
 	Delta           *atomic.Uint64 `json:"delta"`
 }
 
-// TODO: Write the downloader func
-
 func (u *NetUtil) supportsRange(resp *http.Response) bool {
 	supportsRanges := false
 	if resp != nil {
