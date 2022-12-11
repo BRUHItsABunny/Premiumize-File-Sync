@@ -115,12 +115,16 @@ func (u *NetUtil) DownloadFile(global *DownloadGlobal, task *DownloadTask, f *os
 	// Check if download is resumable, if so make request with byte range
 	canResume, err := u.isResumable(task.FileURL.Load())
 	if err != nil {
-		return fmt.Errorf("isResumable: %w", err)
+		err = fmt.Errorf("isResumable: %w", err)
+		u.BLog.Warn(fmt.Sprintf("Not downloading because of error: %s", err.Error()))
+		return err
 	}
 
 	stats, err := f.Stat()
 	if err != nil {
-		return fmt.Errorf("f.Stat: %w", err)
+		err = fmt.Errorf("f.Stat: %w", err)
+		u.BLog.Warn(fmt.Sprintf("Not downloading because of error: %s", err.Error()))
+		return err
 	}
 	task.Downloaded.Store(uint64(stats.Size()))
 	global.Downloaded.Add(uint64(stats.Size()))
@@ -132,7 +136,9 @@ func (u *NetUtil) DownloadFile(global *DownloadGlobal, task *DownloadTask, f *os
 
 	resp, err := u.Client.Do(req)
 	if err != nil {
-		return fmt.Errorf("hClient.Do: %w", err)
+		err = fmt.Errorf("hClient.Do: %w", err)
+		u.BLog.Warn(fmt.Sprintf("Not downloading because of error: %s", err.Error()))
+		return err
 	}
 
 	// Thread safe downloading and tracking
@@ -144,13 +150,15 @@ func (u *NetUtil) DownloadFile(global *DownloadGlobal, task *DownloadTask, f *os
 		global.Downloaded.Add(uint64(written))
 		global.Delta.Add(uint64(written))
 
-		if task.Downloaded.Load() >= task.FileSize.Load()-1 {
+		if task.Downloaded.Load() >= task.FileSize.Load() {
+			u.BLog.Debug("Breaking because task is done downloading")
 			err = nil
 			_ = f.Close()
 			break
 		}
 		if err != nil {
 			err = fmt.Errorf("io.CopyN: %w", err)
+			u.BLog.Warn(fmt.Sprintf("Breaking because of error: %s", err.Error()))
 			break
 		}
 	}
