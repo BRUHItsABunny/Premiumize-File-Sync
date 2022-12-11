@@ -130,7 +130,7 @@ func (a *App) VersionRoutine() string {
 	currentPrompt := CurrentCodeBase.PromptCurrentVersion(CurrentVersion)
 	latestVersion, err := CurrentCodeBase.GetLatestVersion(context.Background(), nil)
 	if err != nil {
-		panic(fmt.Errorf("utils.CurrentCodeBase.GetLatestVersion: %w", err))
+		panic(fmt.Errorf("CurrentCodeBase.GetLatestVersion: %w", err))
 	}
 	isOutdated, latestPrompt := CurrentCodeBase.PromptLatestVersion(CurrentVersion, latestVersion)
 	result.WriteString(currentPrompt.Output)
