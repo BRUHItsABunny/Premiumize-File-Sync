@@ -33,4 +33,4 @@ jobs:
           goversion: "https://dl.google.com/go/go1.19.3.linux-amd64.tar.gz"
           binary_name: "premfs"
           extra_files: README.md
-          ldflags: -X "${{ env.REPO_URL }}app.gitRepo=https://${{ env.REPO_URL }}" -X "${{ env.REPO_URL }}app.appVersion=${{ env.APP_VERSION }}" -X "${{ env.REPO_URL }}app.buildTime=${{ env.BUILD_TIME }}" -X ${{ env.REPO_URL }}app.gitCommit=${{ github.sha }} -X ${{ env.REPO_URL }}app.gitRef=${{ github.ref }}
+          ldflags: -X "${{ env.REPO_URL }}app.GitRepo=https://${{ env.REPO_URL }}" -X "${{ env.REPO_URL }}app.AppVersion=${{ env.APP_VERSION }}" -X "${{ env.REPO_URL }}app.BuildTime=${{ env.BUILD_TIME }}" -X ${{ env.REPO_URL }}app.GitCommit=${{ github.sha }} -X ${{ env.REPO_URL }}app.GitRef=${{ github.ref }}
