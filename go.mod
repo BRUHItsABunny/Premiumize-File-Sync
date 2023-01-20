@@ -15,7 +15,7 @@ require (
 require (
 	github.com/BRUHItsABunny/bunnlog v0.0.1
 	github.com/BRUHItsABunny/bunterm v0.0.2
-	github.com/BRUHItsABunny/gOkHttp v0.2.2
+	github.com/BRUHItsABunny/gOkHttp v0.2.3
 	github.com/BRUHItsABunny/go-ghvu v0.0.3
 	github.com/BRUHItsABunny/go-premiumize v0.0.2
 	github.com/cornelk/hashmap v1.0.8

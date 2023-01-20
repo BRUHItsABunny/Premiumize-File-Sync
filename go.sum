@@ -7,8 +7,8 @@ github.com/BRUHItsABunny/bunterm v0.0.2 h1:3O2pMatkuu4cMATk1l8m8s6b7yCKaQppBVov2
 github.com/BRUHItsABunny/bunterm v0.0.2/go.mod h1:sSlNmopYZChUJr4E2I6b/oTbckGgqLlnZVWozcg38Do=
 github.com/BRUHItsABunny/crypto-utils v0.0.5 h1:R2GkyU2I3kM5q77HmDT6omoe530d+Ikn6LqLP5vCamY=
 github.com/BRUHItsABunny/crypto-utils v0.0.5/go.mod h1:0P7k5dYqGmwk7zTjJue47aE2TRzNA9Fo3d4Bm5+SZIE=
-github.com/BRUHItsABunny/gOkHttp v0.2.2 h1:YTQjsQt9LkKuUgNFGAHgiJ7j8q8GgDIqFd3wupWbhX8=
-github.com/BRUHItsABunny/gOkHttp v0.2.2/go.mod h1:ssk3Ifgv/OZ5fxLXBElLZtp92nUWK2BYEq6VAPeX1yo=
+github.com/BRUHItsABunny/gOkHttp v0.2.3 h1:sirz0Ojqb2U18wMgc8zZU1Uw7Ng05SINufe7ok/3wWM=
+github.com/BRUHItsABunny/gOkHttp v0.2.3/go.mod h1:ssk3Ifgv/OZ5fxLXBElLZtp92nUWK2BYEq6VAPeX1yo=
 github.com/BRUHItsABunny/go-ghvu v0.0.3 h1:2iaJO6SVAVAWBoKm61tyS3zz+aF45iF1tK07gLbIhik=
 github.com/BRUHItsABunny/go-ghvu v0.0.3/go.mod h1:ujrF6F82M4kFkb7eAwV10tzp38UW2KYlRlMU5w7yd7w=
 github.com/BRUHItsABunny/go-premiumize v0.0.2 h1:tR3zppnm8VoVq5i6wKORNt0mmi5y8WYEk5StLym3DPI=
