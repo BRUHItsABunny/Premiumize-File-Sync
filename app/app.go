@@ -6,21 +6,23 @@ import (
 	"fmt"
 	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
 	"github.com/BRUHItsABunny/bunnlog"
+	"github.com/BRUHItsABunny/gOkHttp/client"
+	"github.com/BRUHItsABunny/gOkHttp/download"
 	"github.com/BRUHItsABunny/go-premiumize/api"
 	premiumize_client "github.com/BRUHItsABunny/go-premiumize/client"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 type App struct {
 	Cfg            *Config
 	Client         *premiumize_client.PremiumizeClient
-	DownloadClient *utils.NetUtil
+	DownloadClient *http.Client
 	BLog           *bunnlog.BunnyLog
-	Stats          *Statistics
+	Stats          *download.GlobalDownloadTracker
 	Directory      *utils.PDirectory
 }
 
@@ -48,7 +50,8 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	app.Stats = NewStatistics(app.DownloadClient.GetCurrentIPAddress())
+	app.Stats = download.NewGlobalDownloadTracker(time.Duration(3) * time.Second)
+	app.Stats.PollIP(app.DownloadClient)
 
 	return app, err
 }
@@ -94,19 +97,16 @@ func (a *App) SetupLogger() error {
 }
 
 func (a *App) SetupHTTPClient() error {
-	trans := http.Transport{}
+	opts := []client.Option{}
 	if len(a.Cfg.Proxy) > 0 {
-		a.BLog.Debugf("Trying to parse proxy: %s", a.Cfg.Proxy)
-		puo, err := url.Parse(a.Cfg.Proxy)
-		if err != nil {
-			// Fatal indeed, never again
-			a.BLog.Fatalf("Failed to parse proxy: %s", a.Cfg.Proxy)
-			return err
-		}
-		trans.Proxy = http.ProxyURL(puo)
+		opts = append(opts, client.NewProxyOption(a.Cfg.Proxy))
 	}
 
-	a.DownloadClient = &utils.NetUtil{Client: &http.Client{Transport: &trans}, BLog: a.BLog}
+	var err error
+	a.DownloadClient, err = client.NewHTTPClient(opts...)
+	if err != nil {
+		return fmt.Errorf("client.NewHTTPClient: %w", err)
+	}
 	return nil
 }
 
@@ -121,7 +121,7 @@ func (a *App) SetupPremiumizeClient() error {
 	if len(a.Cfg.APIKey) > 0 {
 		session = &api.PremiumizeSession{SessionType: "apikey", AuthToken: a.Cfg.APIKey}
 	}
-	a.Client = premiumize_client.NewPremiumizeClient(session, a.DownloadClient.Client)
+	a.Client = premiumize_client.NewPremiumizeClient(session, a.DownloadClient)
 	return nil
 }
 

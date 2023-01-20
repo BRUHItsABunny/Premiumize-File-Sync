@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
-	"github.com/BRUHItsABunny/bunnlog"
 	premiumize "github.com/BRUHItsABunny/go-premiumize"
 	"github.com/BRUHItsABunny/go-premiumize/client"
 	"github.com/cornelk/hashmap"
@@ -45,15 +44,6 @@ func TestPremiumize(t *testing.T) {
 	directory := utils.LocateDirectory(pClient, os.Getenv("PREMIUMIZE_TARGET_FOLDER"), true)
 	fmt.Println(spew.Sdump(directory))
 	fmt.Println("Total size: " + humanize.Bytes(uint64(directory.TotalSize.Load())))
-}
-
-func Test_GetCurrentIPAddress(t *testing.T) {
-	netUtil := utils.NetUtil{Client: http.DefaultClient, BLog: &bunnlog.BunnyLog{}}
-	ip := netUtil.GetCurrentIPAddress()
-	if ip == "" {
-		t.Error(ip)
-	}
-	fmt.Println(ip)
 }
 
 func Test_Truncate(t *testing.T) {
@@ -188,4 +178,31 @@ func TestFSLogic(t *testing.T) {
 		t.Error("file is nil")
 	}
 
+}
+
+func TestChannelLogicWorker(t *testing.T) {
+	threadCount := 6
+	limit := 10
+	feedChan := make(chan int, threadCount-1)
+
+	go func() {
+		for i := 0; i <= limit; i++ {
+			fmt.Println(fmt.Sprintf("Feeding: %d", i))
+			feedChan <- i
+			fmt.Println(fmt.Sprintf("Fed: %d", i))
+			// time.Sleep(time.Second)
+		}
+	}()
+
+	for {
+		fmt.Println(fmt.Sprintf("Waiting for feed"))
+		r := <-feedChan
+		fmt.Println(fmt.Sprintf("Feed gave: %d", r))
+		if r >= limit {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+
+	fmt.Println("Done")
 }

@@ -1,28 +1,28 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/BRUHItsABunny/Premiumize-File-Sync/app"
 	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
 	"github.com/BRUHItsABunny/bunterm"
+	"github.com/BRUHItsABunny/gOkHttp/download"
 	"github.com/dustin/go-humanize"
-	"go.uber.org/atomic"
+	"golang.org/x/sync/errgroup"
 	"os"
-	"path/filepath"
 	"sort"
 	"time"
 )
 
-func downloadLoop(appData *app.App, dir *utils.PDirectory, notification chan struct{}) {
+func downloadLoop(appData *app.App, dir *utils.PDirectory, workChan chan *download.ThreadedDownloadTask) {
 	var (
-		f   *os.File
 		err error
 	)
 	if dir == nil {
 		dir = appData.Directory
 	}
-	appData.Stats.Global.Directory.Store(appData.Directory.Path.Load())
-	appData.BLog.Infof("Starting to download directory: %s", appData.Directory.Path.Load())
+	appData.BLog.Infof("DLLoop: Starting to download directory: %s", appData.Directory.Path.Load())
 
 	files := []string{}
 	for _, fObj := range dir.Files {
@@ -30,42 +30,34 @@ func downloadLoop(appData *app.App, dir *utils.PDirectory, notification chan str
 	}
 	sort.Sort(sort.StringSlice(files))
 
-	for _, fileKey := range files {
-		// Wait for space in queue
-		appData.BLog.Debug("Waiting for notification...")
-		<-notification
-		file := dir.Files[fileKey]
-		appData.BLog.Infof("Starting to download file: %s", file.Name.Load())
-		task := &utils.DownloadTask{
-			FileName:     atomic.NewString(file.Name.Load()),
-			FileLocation: atomic.NewString(file.GetFullPath()),
-			FileURL:      atomic.NewString(file.Link.Load()),
-			FileSize:     atomic.NewUint64(uint64(file.Size.Load())),
-			Downloaded:   atomic.NewUint64(0),
-			Delta:        atomic.NewUint64(0),
-		}
-		appData.BLog.Debugf("task: %s", task.JSON())
-
-		dName := filepath.Dir(task.FileLocation.Load())
-		appData.BLog.Debugf("Making directory: %s", dName)
-		err = os.MkdirAll(dName, 0600)
-		if err != nil {
-			err = fmt.Errorf("os.MkdirAll: %w", err)
-			appData.BLog.Fatalf("Failed to create dir: %s", err.Error())
-			break
-		}
-		appData.BLog.Infof("Made directory: %s", dName)
-
-		f, err = os.OpenFile(task.FileLocation.Load(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-		if err != nil || f == nil {
-			err = fmt.Errorf("os.OpenFile: %w", err)
-			appData.BLog.Fatalf("Failed to open or create file: %s", err.Error())
+	for i := 0; i < len(files); i++ {
+		if appData.Stats.GraceFulStop.Load() {
+			appData.BLog.Debug("DLLoop stopping - graceful stop")
 			break
 		}
 
-		appData.Stats.Tasks.Set(task.FileLocation.Load(), task)
-		go appData.DownloadClient.DownloadFile(appData.Stats.Global, task, f, notification)
-		appData.BLog.Infof("Started downloading thread url: %s", task.FileURL.Load())
+		if appData.Stats.Tasks.Len() >= appData.Cfg.DownloadThreads {
+			appData.BLog.Debug("DLLoop: Sending nil task")
+			// Don't spam tracker with tasks we don't actively run
+			workChan <- nil
+			appData.BLog.Debug("DLLoop: Sent nil task")
+			i--
+		} else {
+			file := dir.Files[files[i]]
+			appData.BLog.Infof("DLLoop: Preparing task: %s", file.Name.Load())
+			task, err := download.NewThreadedDownloadTask(context.Background(), appData.DownloadClient, appData.Stats, file.GetFullPath(), file.Link.Load(), 1, uint64(file.Size.Load())) //requests.NewHeaderOption(http.Header{"Accept-Encoding": []string{"identity"}})
+			if err != nil {
+				err = fmt.Errorf("download.NewThreadedDownloadTask: %w", err)
+				appData.BLog.Error("DLLoop: Failed to prepare task: %s", err.Error())
+				break
+			}
+			appData.Stats.TotalFiles.Dec()
+			appData.Stats.TotalBytes.Sub(task.TaskStats.FileSize.Load())
+			appData.BLog.Infof("DLLoop: Sending task: %s", file.Name.Load())
+			workChan <- task
+			appData.BLog.Infof("DLLoop: Sent task: %s", file.Name.Load())
+		}
+
 	}
 
 	if err == nil {
@@ -73,10 +65,14 @@ func downloadLoop(appData *app.App, dir *utils.PDirectory, notification chan str
 		for subDirLocation, _ := range dir.Directories {
 			subDirs = append(subDirs, subDirLocation)
 		}
-		sort.Strings(sort.StringSlice(subDirs))
+		sort.Strings(subDirs)
 
 		for _, key := range subDirs {
-			downloadLoop(appData, dir.Directories[key], notification)
+			if appData.Stats.GraceFulStop.Load() {
+				appData.BLog.Debug("DLLoop stopping (recursion) - graceful stop")
+				break
+			}
+			downloadLoop(appData, dir.Directories[key], workChan)
 		}
 	}
 }
@@ -99,47 +95,93 @@ func main() {
 		// can't get dir
 		panic("dir is nil")
 	}
-	appData.Stats.Global.TotalFiles.Store(appData.Directory.FileCount.Load())
-	appData.Stats.Global.TotalSize.Store(uint64(appData.Directory.TotalSize.Load()))
+	appData.Stats.TotalFiles.Store(uint64(appData.Directory.FileCount.Load()))
+	appData.Stats.TotalBytes.Store(uint64(appData.Directory.TotalSize.Load()))
 	appData.BLog.Infof("Crawled dir: %s with a total of %d files found (%s)", appData.Directory.Name.Load(), appData.Directory.FileCount.Load(), humanize.Bytes(uint64(appData.Directory.TotalSize.Load())))
-
-	notification := make(chan struct{}, appData.Cfg.DownloadThreads)
-	for j := 0; j < appData.Cfg.DownloadThreads; j++ {
-		notification <- struct{}{}
-	}
 
 	// UI
 	go func() {
 		appData.BLog.Debug("Starting the UI thread")
+		fmt.Println(appData.Stats.Tick(true))
 		term := bunterm.DefaultTerminal
-		continueLoop := true
-		i := 0
-		for continueLoop {
-			i++
-			if i >= 60 {
-				i = 1
-				ip := appData.DownloadClient.GetCurrentIPAddress()
-				if len(ip) > 0 {
-					appData.Stats.Global.CurrentIP.Store(ip)
+		for {
+			if appData.Stats.GraceFulStop.Load() || appData.Stats.IdleTimeoutExceeded() {
+				if appData.Stats.GraceFulStop.Load() {
+					appData.BLog.Info(fmt.Sprintf("[UI] - Graceful stop"))
+				} else {
+					appData.BLog.Info(fmt.Sprintf("[UI] - Time out stop"))
 				}
-				appData.BLog.Debugf("Refreshed IP address: %s", appData.Stats.Global.CurrentIP.Load())
+				appData.Stats.Stop()
+				break
 			}
 			if !appData.Cfg.Daemon {
 				// Human-readable means we clear the spam
 				term.ClearTerminal()
 				term.MoveCursor(0, 0)
 			}
-			fmt.Println(appData.Stats.Tick(!appData.Cfg.Daemon, notification))
-
-			if appData.Stats.Global.DownloadedFiles.Load() >= appData.Stats.Global.TotalFiles.Load() {
-				continueLoop = false
-			}
-
+			fmt.Println(appData.Stats.Tick(true))
 			time.Sleep(time.Second)
 		}
 		appData.BLog.Debug("Stopping the UI thread")
 	}()
 
-	appData.BLog.Debugf("Going to start download loop with %d threads", appData.Cfg.DownloadThreads)
-	downloadLoop(appData, nil, notification)
+	errGr, ctx := errgroup.WithContext(context.Background())
+	workChan := make(chan *download.ThreadedDownloadTask, appData.Cfg.DownloadThreads-1)
+	for i := 1; i <= appData.Cfg.DownloadThreads; i++ {
+		threadId := i
+		errGr.Go(func() error {
+			return Worker(ctx, threadId, workChan, appData)
+		})
+	}
+
+	appData.BLog.Debugf("Going to start download loop")
+	go downloadLoop(appData, nil, workChan)
+	err = errGr.Wait()
+	if err != nil {
+		appData.BLog.Error(err)
+		<-workChan // unlock looper
+	}
+	appData.BLog.Info("Waiting for all threads to end")
+	appData.Stats.Stop()
+	appData.BLog.Info("Stopping program")
+}
+
+func Worker(ctx context.Context, threadId int, workChan chan *download.ThreadedDownloadTask, appData *app.App) error {
+	appData.BLog.Debug(fmt.Sprintf("[thread:%d] Worker starting", threadId))
+	ticker := time.NewTicker(time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			break
+		case task := <-workChan:
+			if task == nil {
+				continue
+			} else {
+				appData.BLog.Debug(fmt.Sprintf("[thread:%d] Worker downloading: %s", threadId, task.FileLocation.Load()))
+				// Blocking
+				err := task.Download(ctx)
+				if err != nil {
+					appData.BLog.Error(fmt.Sprintf("[thread:%d] Worker stopping: %s", threadId, err.Error()))
+					appData.BLog.Debug(fmt.Sprintf("[thread:%d] Task: %s", threadId, TaskJSON(task)))
+					return fmt.Errorf("[thread:%d] task.Download: %w", threadId, err)
+				}
+			}
+			break
+		}
+		if appData.Stats.GraceFulStop.Load() {
+			appData.BLog.Info(fmt.Sprintf("[thread:%d] Worker stopping - Graceful stop", threadId))
+			break
+		}
+	}
+	appData.BLog.Debug(fmt.Sprintf("[thread:%d] Worker stopping", threadId))
+	return nil
+}
+
+func TaskJSON(task *download.ThreadedDownloadTask) string {
+	jsonBytes, err := json.Marshal(task)
+	if err != nil {
+		return ""
+	}
+
+	return string(jsonBytes)
 }
