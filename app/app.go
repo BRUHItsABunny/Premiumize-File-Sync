@@ -50,7 +50,7 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	app.Stats = download.NewGlobalDownloadTracker(time.Duration(3) * time.Second)
+	app.Stats = download.NewGlobalDownloadTracker(time.Duration(app.Cfg.ProgressTimeOut) * time.Second)
 	app.Stats.PollIP(app.DownloadClient)
 
 	return app, err
@@ -65,7 +65,7 @@ func (a *App) ParseCfg() {
 	flag.IntVar(&a.Cfg.DownloadThreads, "threads", 1, "This is how many files we download in parallel (min=1, max=6)")
 	flag.StringVar(&a.Cfg.Folder, "folder", "", "This is the folder we will start crawling in")
 	flag.BoolVar(&a.Cfg.Recursive, "recursion", false, "This controls if we want all files inside all folders of the folder you selected or just all files in the folder you selected")
-	flag.IntVar(&a.Cfg.ProgressInterval, "pinterval", 5, "This is how many seconds we wait in between each progress print")
+	flag.IntVar(&a.Cfg.ProgressTimeOut, "ptimeout", 5, "This is how many seconds we wait for any progress update before we assume we are done")
 	flag.StringVar(&a.Cfg.Proxy, "proxy", "", "This argument is for proxying this program (format: proto://ip:port)")
 	flag.BoolVar(&a.Cfg.Debug, "debug", false, "This argument is for how verbose the logger will be")
 	flag.BoolVar(&a.Cfg.Daemon, "daemon", false, "This argument is for how the UI feedback will be, if set to true it will print JSON")
