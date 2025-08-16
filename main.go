@@ -2,20 +2,22 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/BRUHItsABunny/Premiumize-File-Sync/app"
-	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
-	"github.com/BRUHItsABunny/bunterm"
-	"github.com/BRUHItsABunny/gOkHttp/download"
-	"github.com/dustin/go-humanize"
-	"golang.org/x/sync/errgroup"
 	"os"
 	"sort"
 	"time"
+
+	"github.com/BRUHItsABunny/Premiumize-File-Sync/app"
+	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
+	"github.com/BRUHItsABunny/bunterm"
+	"github.com/BRUHItsABunny/gOkHttp-download"
+	"github.com/dustin/go-humanize"
+	"golang.org/x/sync/errgroup"
 )
 
-func downloadLoop(appData *app.App, dir *utils.PDirectory, workChan chan *download.ThreadedDownloadTask) {
+func downloadLoop(appData *app.App, dir *utils.PDirectory, workChan chan *gokhttp_download.ThreadedDownloadTask) {
 	var (
 		err error
 	)
@@ -45,7 +47,7 @@ func downloadLoop(appData *app.App, dir *utils.PDirectory, workChan chan *downlo
 		} else {
 			file := dir.Files[files[i]]
 			appData.BLog.Infof("DLLoop: Preparing task: %s", file.Name.Load())
-			task, err := download.NewThreadedDownloadTask(context.Background(), appData.DownloadClient, appData.Stats, file.GetFullPath(), file.Link.Load(), 1, uint64(file.Size.Load())) //requests.NewHeaderOption(http.Header{"Accept-Encoding": []string{"identity"}})
+			task, err := gokhttp_download.NewThreadedDownloadTask(context.Background(), appData.DownloadClient, appData.Stats, file.GetFullPath(), file.Link.Load(), 1, uint64(file.Size.Load())) //requests.NewHeaderOption(http.Header{"Accept-Encoding": []string{"identity"}})
 			if err != nil {
 				err = fmt.Errorf("download.NewThreadedDownloadTask: %w", err)
 				appData.BLog.Error("DLLoop: Failed to prepare task: %s", err.Error())
@@ -90,6 +92,37 @@ func main() {
 	}
 	appData.BLog.Debug(versionOutput)
 
+	folderHash := hex.EncodeToString([]byte(appData.Cfg.Folder))
+	folderLockfile := folderHash + ".lock"
+	if !appData.Cfg.IgnoreParallel {
+		_, err = os.Stat(folderLockfile)
+		if err == nil {
+			fmt.Println("There is already a sync in progress for this folder.")
+			appData.BLog.Warn("There is already a sync in progress for this folder.")
+			os.Exit(0)
+		} else {
+			if os.IsNotExist(err) {
+				// Continue
+				lockFile, err := os.Create(folderLockfile)
+				if err != nil {
+					// Error out
+					msg := fmt.Sprintf("An error occurred while creating the lockfile: %s", err.Error())
+					fmt.Println(msg)
+					appData.BLog.Error(msg)
+					os.Exit(-1)
+				}
+				lockFile.Close()
+				defer os.Remove(folderLockfile)
+			} else {
+				// Error out
+				msg := fmt.Sprintf("An error occurred while checking for the lockfile: %s", err.Error())
+				fmt.Println(msg)
+				appData.BLog.Error(msg)
+				os.Exit(-1)
+			}
+		}
+	}
+
 	appData.Directory = utils.LocateDirectory(appData.Client, appData.Cfg.Folder, appData.Cfg.Recursive)
 	if appData.Directory == nil {
 		// can't get dir
@@ -98,6 +131,21 @@ func main() {
 	appData.Stats.TotalFiles.Store(uint64(appData.Directory.FileCount.Load()))
 	appData.Stats.TotalBytes.Store(uint64(appData.Directory.TotalSize.Load()))
 	appData.BLog.Infof("Crawled dir: %s with a total of %d files found (%s)", appData.Directory.Name.Load(), appData.Directory.FileCount.Load(), humanize.Bytes(uint64(appData.Directory.TotalSize.Load())))
+
+	if appData.Cfg.OutputAnalysis || appData.Cfg.Repair {
+		localDir := &utils.PDirectory{}
+		localDir, err = utils.BuildDirectoryTree(appData.Directory.Name.Load())
+		if err != nil {
+			msg := fmt.Sprintf("An error occurred while analyzing local filesystem: %s", err.Error())
+			fmt.Println(msg)
+			appData.BLog.Error(msg)
+			os.Exit(-1)
+		}
+
+		// Repair by removing PARTIAL and OVERSIZED files, files missing in remote are ignored and files missing locally are not an error
+		_ = utils.CompareLocalToRemote(appData.BLog, localDir, appData.Directory, appData.Cfg.Repair)
+		return
+	}
 
 	// UI
 	go func() {
@@ -126,7 +174,7 @@ func main() {
 	}()
 
 	errGr, ctx := errgroup.WithContext(context.Background())
-	workChan := make(chan *download.ThreadedDownloadTask, appData.Cfg.DownloadThreads-1)
+	workChan := make(chan *gokhttp_download.ThreadedDownloadTask, appData.Cfg.DownloadThreads-1)
 	for i := 1; i <= appData.Cfg.DownloadThreads; i++ {
 		threadId := i
 		errGr.Go(func() error {
@@ -144,9 +192,10 @@ func main() {
 	appData.BLog.Info("Waiting for all threads to end")
 	appData.Stats.Stop()
 	appData.BLog.Info("Stopping program")
+	return
 }
 
-func Worker(ctx context.Context, threadId int, workChan chan *download.ThreadedDownloadTask, appData *app.App) error {
+func Worker(ctx context.Context, threadId int, workChan chan *gokhttp_download.ThreadedDownloadTask, appData *app.App) error {
 	appData.BLog.Debug(fmt.Sprintf("[thread:%d] Worker starting", threadId))
 	ticker := time.NewTicker(time.Second)
 	for {
@@ -177,7 +226,7 @@ func Worker(ctx context.Context, threadId int, workChan chan *download.ThreadedD
 	return nil
 }
 
-func TaskJSON(task *download.ThreadedDownloadTask) string {
+func TaskJSON(task *gokhttp_download.ThreadedDownloadTask) string {
 	jsonBytes, err := json.Marshal(task)
 	if err != nil {
 		return ""

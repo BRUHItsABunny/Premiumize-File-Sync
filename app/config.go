@@ -10,4 +10,8 @@ type Config struct {
 	Debug           bool
 	Daemon          bool
 	Version         bool
+	IgnoreParallel  bool
+	LogName         string
+	OutputAnalysis  bool
+	Repair          bool
 }

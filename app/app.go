@@ -4,17 +4,19 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
-	"github.com/BRUHItsABunny/bunnlog"
-	"github.com/BRUHItsABunny/gOkHttp/client"
-	"github.com/BRUHItsABunny/gOkHttp/download"
-	"github.com/BRUHItsABunny/go-premiumize/api"
-	premiumize_client "github.com/BRUHItsABunny/go-premiumize/client"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/BRUHItsABunny/Premiumize-File-Sync/utils"
+	"github.com/BRUHItsABunny/bunnlog"
+	"github.com/BRUHItsABunny/gOkHttp-download"
+	"github.com/BRUHItsABunny/gOkHttp/client"
+	"github.com/BRUHItsABunny/go-premiumize/api"
+	premiumize_client "github.com/BRUHItsABunny/go-premiumize/client"
 )
 
 type App struct {
@@ -22,7 +24,7 @@ type App struct {
 	Client         *premiumize_client.PremiumizeClient
 	DownloadClient *http.Client
 	BLog           *bunnlog.BunnyLog
-	Stats          *download.GlobalDownloadTracker
+	Stats          *gokhttp_download.GlobalDownloadTracker
 	Directory      *utils.PDirectory
 }
 
@@ -50,7 +52,7 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	app.Stats = download.NewGlobalDownloadTracker(time.Duration(app.Cfg.ProgressTimeOut) * time.Second)
+	app.Stats = gokhttp_download.NewGlobalDownloadTracker(time.Duration(app.Cfg.ProgressTimeOut) * time.Second)
 	app.Stats.PollIP(app.DownloadClient)
 
 	return app, err
@@ -62,7 +64,7 @@ func (a *App) ParseCfg() {
 	}
 
 	flag.StringVar(&a.Cfg.APIKey, "apikey", "", "This is our APIKey - not needed and can also be set as env variable PREMIUMIZE_API_KEY, if missing it will authenticate via device code")
-	flag.IntVar(&a.Cfg.DownloadThreads, "threads", 1, "This is how many files we download in parallel (min=1, max=6)")
+	flag.IntVar(&a.Cfg.DownloadThreads, "threads", 1, "This is how many files we download in parallel (min=1, max=9)")
 	flag.StringVar(&a.Cfg.Folder, "folder", "", "This is the folder we will start crawling in")
 	flag.BoolVar(&a.Cfg.Recursive, "recursion", false, "This controls if we want all files inside all folders of the folder you selected or just all files in the folder you selected")
 	flag.IntVar(&a.Cfg.ProgressTimeOut, "ptimeout", 5, "This is how many seconds we wait for any progress update before we assume we are done")
@@ -70,18 +72,26 @@ func (a *App) ParseCfg() {
 	flag.BoolVar(&a.Cfg.Debug, "debug", false, "This argument is for how verbose the logger will be")
 	flag.BoolVar(&a.Cfg.Daemon, "daemon", false, "This argument is for how the UI feedback will be, if set to true it will print JSON")
 	flag.BoolVar(&a.Cfg.Version, "version", false, "This argument will print the current version data and exit")
+	flag.BoolVar(&a.Cfg.IgnoreParallel, "ignoreparallel", false, "This argument is used to override parallel run detection if set to true")
+	flag.StringVar(&a.Cfg.LogName, "logname", "premiumize-file-sync-:UNIX_TIME.log", "This argument is for specifying the log file name. Default: premiumize-file-sync.log")
+	flag.BoolVar(&a.Cfg.OutputAnalysis, "analyze", false, "This argument is used to output a detailed analysis of the files and folders that are relevant to the run prior to downloading anything")
+	flag.BoolVar(&a.Cfg.Repair, "repair", false, "This argument is used to repair the local files and folders that are relevant to the run (eg: when you're downloading more than what's possible) by deleting the file and letting the program redownload it")
 	flag.Parse()
 
-	if a.Cfg.DownloadThreads > 6 {
-		a.Cfg.DownloadThreads = 6
+	if a.Cfg.DownloadThreads > 9 {
+		a.Cfg.DownloadThreads = 9
 	}
 	if a.Cfg.DownloadThreads < 1 {
 		a.Cfg.DownloadThreads = 1
 	}
+
+	if !a.Cfg.IgnoreParallel {
+
+	}
 }
 
 func (a *App) SetupLogger() error {
-	logFile, err := os.Create("premiumize-file-sync.log")
+	logFile, err := os.Create(strings.ReplaceAll(a.Cfg.LogName, ":UNIX_TIME", strconv.FormatInt(time.Now().Unix(), 10)))
 	if err != nil {
 		return err
 	}
@@ -97,13 +107,13 @@ func (a *App) SetupLogger() error {
 }
 
 func (a *App) SetupHTTPClient() error {
-	opts := []client.Option{}
+	opts := []gokhttp_client.Option{}
 	if len(a.Cfg.Proxy) > 0 {
-		opts = append(opts, client.NewProxyOption(a.Cfg.Proxy))
+		opts = append(opts, gokhttp_client.NewProxyOption(a.Cfg.Proxy))
 	}
 
 	var err error
-	a.DownloadClient, err = client.NewHTTPClient(opts...)
+	a.DownloadClient, err = gokhttp_client.NewHTTPClient(opts...)
 	if err != nil {
 		return fmt.Errorf("client.NewHTTPClient: %w", err)
 	}
