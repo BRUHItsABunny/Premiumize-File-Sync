@@ -16,3 +16,4 @@ A continuation of an older project that can be found [here](https://github.com/B
 * Unzip the file
 * OPTIONAL - Move the file to a better location and add it to your PATH
 * Start using the executable in your command line interface
+* 
